@@ -1,9 +1,9 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import type { AuthUser } from '../../shared/types';
-import { AppError, query } from './db';
-import { config } from './env';
+import type { AuthUser } from '../../shared/types.js';
+import { AppError, query } from './db.js';
+import { config } from './env.js';
 
 export const SESSION_COOKIE = 'gw_session';
 const SESSION_DAYS = 30;

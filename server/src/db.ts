@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { config } from './env';
+import { config } from './env.js';
 
 export interface QueryResult<T> {
   rows: T[];

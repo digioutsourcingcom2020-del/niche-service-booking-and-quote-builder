@@ -1,8 +1,8 @@
-import type { BookingDto, EmailDto, SettingsDto } from '../../shared/types';
-import { formatMoney } from '../../shared/pricing';
-import { config } from './env';
-import { newId, query } from './db';
-import { formatInZone } from './time';
+import type { BookingDto, EmailDto, SettingsDto } from '../../shared/types.js';
+import { formatMoney } from '../../shared/pricing.js';
+import { config } from './env.js';
+import { newId, query } from './db.js';
+import { formatInZone } from './time.js';
 
 export type EmailKind = 'booking_received' | 'booking_confirmed' | 'booking_completed' | 'booking_cancelled';
 

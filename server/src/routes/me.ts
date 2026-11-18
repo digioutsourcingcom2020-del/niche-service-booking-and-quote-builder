@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import type { AppEnv } from '../auth';
-import { bookingsForUser } from '../bookings';
-import { requireUser } from '../auth';
+import type { AppEnv } from '../auth.js';
+import { bookingsForUser } from '../bookings.js';
+import { requireUser } from '../auth.js';
 
 const router = new Hono<AppEnv>();
 

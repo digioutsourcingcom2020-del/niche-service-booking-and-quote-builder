@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { AuthUser } from '../../../shared/types';
-import { endSession, hashPassword, startSession, verifyPassword, type AppEnv } from '../auth';
-import { AppError, newId, query } from '../db';
+import type { AuthUser } from '../../../shared/types.js';
+import { endSession, hashPassword, startSession, verifyPassword, type AppEnv } from '../auth.js';
+import { AppError, newId, query } from '../db.js';
 
 const router = new Hono<AppEnv>();
 

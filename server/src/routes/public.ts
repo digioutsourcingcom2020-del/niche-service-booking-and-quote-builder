@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { AppEnv } from '../auth';
-import { computeAvailability, createBooking } from '../bookings';
-import { AppError } from '../db';
-import { getProfile } from '../store';
+import type { AppEnv } from '../auth.js';
+import { computeAvailability, createBooking } from '../bookings.js';
+import { AppError } from '../db.js';
+import { getProfile } from '../store.js';
 
 const router = new Hono<AppEnv>();
 

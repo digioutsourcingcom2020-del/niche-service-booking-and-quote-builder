@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import { ZodError } from 'zod';
-import { sessionMiddleware, type AppEnv } from './auth';
-import { AppError } from './db';
-import { config } from './env';
-import adminRoutes from './routes/admin';
-import authRoutes from './routes/auth';
-import meRoutes from './routes/me';
-import publicRoutes from './routes/public';
+import { sessionMiddleware, type AppEnv } from './auth.js';
+import { AppError } from './db.js';
+import adminRoutes from './routes/admin.js';
+import authRoutes from './routes/auth.js';
+import meRoutes from './routes/me.js';
+import publicRoutes from './routes/public.js';
 
 export function createApp() {
   const app = new Hono<AppEnv>();

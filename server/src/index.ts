@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { config } from './env';
-import { initDb } from './init';
-import { createApp } from './app';
+import { config } from './env.js';
+import { initDb } from './init.js';
+import { createApp } from './app.js';
 
 await initDb();
 

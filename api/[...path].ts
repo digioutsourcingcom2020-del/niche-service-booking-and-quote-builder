@@ -1,6 +1,6 @@
-import { createApp } from '../server/src/app';
-import { initDb } from '../server/src/init';
-import type { App } from '../server/src/app';
+import { createApp } from '../server/src/app.js';
+import { initDb } from '../server/src/init.js';
+import type { App } from '../server/src/app.js';
 
 let appPromise: Promise<App> | undefined;
 

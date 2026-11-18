@@ -1,11 +1,11 @@
 import { DateTime } from 'luxon';
-import { quoteFor } from '../../shared/pricing';
-import { hashPassword } from './auth';
-import { newId, query } from './db';
-import { mapBooking } from './bookings';
-import { deliverEmail } from './emails';
-import { getSettings } from './store';
-import { toIsoUtc } from './time';
+import { quoteFor } from '../../shared/pricing.js';
+import { hashPassword } from './auth.js';
+import { newId, query } from './db.js';
+import { mapBooking } from './bookings.js';
+import { deliverEmail } from './emails.js';
+import { getSettings } from './store.js';
+import { toIsoUtc } from './time.js';
 
 const PROVIDER_EMAIL = 'provider@gleamworks.studio';
 const CLIENT_EMAIL = 'client@example.com';

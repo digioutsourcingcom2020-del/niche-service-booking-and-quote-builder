@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
-import type { SlotDto, WorkingHourDto } from '../../shared/types';
-import { toIsoUtc } from './time';
+import type { SlotDto, WorkingHourDto } from '../../shared/types.js';
+import { toIsoUtc } from './time.js';
 
 export interface BookedRange {
   startsAt: string;
