@@ -1,10 +1,11 @@
 import { DateTime } from 'luxon';
 import { quoteFor } from '../../shared/pricing';
 import { hashPassword } from './auth';
-import { query } from './db';
+import { newId, query } from './db';
 import { mapBooking } from './bookings';
 import { deliverEmail } from './emails';
 import { getSettings } from './store';
+import { toIsoUtc } from './time';
 
 const PROVIDER_EMAIL = 'provider@gleamworks.studio';
 const CLIENT_EMAIL = 'client@example.com';
@@ -21,19 +22,19 @@ export async function seed(): Promise<void> {
   if (existing.rowCount) return;
 
   const provider = await query<{ id: string }>(
-    `INSERT INTO users (name, email, password_hash, role)
-     VALUES ($1, $2, $3, 'provider') RETURNING id`,
-    ['Maya Chen', PROVIDER_EMAIL, hashPassword(DEMO_PASSWORD)],
+    `INSERT INTO users (id, name, email, password_hash, role)
+     VALUES (?, ?, ?, ?, 'provider') RETURNING id`,
+    [newId(), 'Maya Chen', PROVIDER_EMAIL, hashPassword(DEMO_PASSWORD)],
   );
   const client = await query<{ id: string }>(
-    `INSERT INTO users (name, email, password_hash, role)
-     VALUES ($1, $2, $3, 'client') RETURNING id`,
-    ['Jordan Blake', CLIENT_EMAIL, hashPassword(DEMO_PASSWORD)],
+    `INSERT INTO users (id, name, email, password_hash, role)
+     VALUES (?, ?, ?, ?, 'client') RETURNING id`,
+    [newId(), 'Jordan Blake', CLIENT_EMAIL, hashPassword(DEMO_PASSWORD)],
   );
 
   await query(
     `INSERT INTO settings (id, business_name, tagline, phone, address, timezone, slot_minutes, lead_minutes, horizon_days)
-     VALUES (1, $1, $2, $3, $4, $5, 30, 120, 14)`,
+     VALUES (1, ?, ?, ?, ?, ?, 30, 120, 14)`,
     [
       'Gleamworks Mobile Detailing',
       'Showroom shine, delivered to your driveway.',
@@ -54,7 +55,7 @@ export async function seed(): Promise<void> {
   ];
   for (const [weekday, isOpen, startMin, endMin] of hours) {
     await query(
-      'INSERT INTO working_hours (weekday, is_open, start_min, end_min) VALUES ($1, $2, $3, $4)',
+      'INSERT INTO working_hours (weekday, is_open, start_min, end_min) VALUES (?, ?, ?, ?)',
       [weekday, isOpen, startMin, endMin],
     );
   }
@@ -85,9 +86,9 @@ export async function seed(): Promise<void> {
   const serviceIds: string[] = [];
   for (const service of services) {
     const inserted = await query<{ id: string }>(
-      `INSERT INTO services (name, description, base_price_cents, duration_min, sort_order)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [service.name, service.description, service.basePriceCents, service.durationMin, service.sortOrder],
+      `INSERT INTO services (id, name, description, base_price_cents, duration_min, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [newId(), service.name, service.description, service.basePriceCents, service.durationMin, service.sortOrder],
     );
     serviceIds.push(inserted.rows[0].id);
   }
@@ -101,9 +102,9 @@ export async function seed(): Promise<void> {
   const addonIds: string[] = [];
   for (const addon of addons) {
     const inserted = await query<{ id: string }>(
-      `INSERT INTO addons (name, description, price_cents, duration_min, sort_order)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [addon.name, addon.description, addon.priceCents, addon.durationMin, addon.sortOrder],
+      `INSERT INTO addons (id, name, description, price_cents, duration_min, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+      [newId(), addon.name, addon.description, addon.priceCents, addon.durationMin, addon.sortOrder],
     );
     addonIds.push(inserted.rows[0].id);
   }
@@ -180,16 +181,17 @@ export async function seed(): Promise<void> {
   for (const entry of entries) {
     const service = services[entry.serviceIndex];
     const quote = quoteFor(service.basePriceCents, service.durationMin, entry.addonList);
-    const startIso = entry.start.toUTC().toISO()!;
-    const endIso = entry.start.plus({ minutes: quote.durationMin }).toUTC().toISO()!;
+    const startIso = toIsoUtc(entry.start);
+    const endIso = toIsoUtc(entry.start.plus({ minutes: quote.durationMin }));
     const inserted = await query(
       `INSERT INTO bookings (
-         reference, user_id, service_id, service_name, addons, status,
+         id, reference, user_id, service_id, service_name, addons, status,
          starts_at, ends_at, duration_min, base_price_cents, addons_price_cents, total_cents,
          customer_name, customer_email, customer_phone, notes, client_timezone
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Asia/Manila')
+       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Asia/Manila')
        RETURNING *`,
       [
+        newId(),
         entry.reference,
         entry.userId ?? null,
         serviceIds[entry.serviceIndex],

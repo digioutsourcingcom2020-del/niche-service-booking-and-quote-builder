@@ -35,7 +35,7 @@ function hashToken(token: string): string {
 export async function startSession(c: Context<AppEnv>, userId: string): Promise<void> {
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  await query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)', [
+  await query('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)', [
     hashToken(token),
     userId,
     expiresAt,
@@ -52,7 +52,7 @@ export async function startSession(c: Context<AppEnv>, userId: string): Promise<
 export async function endSession(c: Context<AppEnv>): Promise<void> {
   const token = getCookie(c, SESSION_COOKIE);
   if (token) {
-    await query('DELETE FROM sessions WHERE token_hash = $1', [hashToken(token)]);
+    await query('DELETE FROM sessions WHERE token_hash = ?', [hashToken(token)]);
   }
   deleteCookie(c, SESSION_COOKIE, { path: '/' });
 }
@@ -64,8 +64,8 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       `SELECT u.id, u.name, u.email, u.role
          FROM sessions s
          JOIN users u ON u.id = s.user_id
-        WHERE s.token_hash = $1 AND s.expires_at > now()`,
-      [hashToken(token)],
+        WHERE s.token_hash = ? AND s.expires_at > ?`,
+      [hashToken(token), new Date().toISOString()],
     );
     if (result.rows[0]) c.set('user', result.rows[0]);
   }

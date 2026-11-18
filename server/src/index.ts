@@ -48,11 +48,8 @@ app.onError((err, c) => {
   if (err instanceof SyntaxError) {
     return c.json({ error: 'The request body was not valid JSON.' }, 400);
   }
-  const code = (err as { code?: string }).code;
-  if (code === '23P01') {
-    return c.json({ error: 'That slot was just taken. Please choose another time.' }, 409);
-  }
-  if (code === '23505') {
+  const message = err instanceof Error ? err.message : '';
+  if (message.includes('UNIQUE constraint failed')) {
     return c.json({ error: 'That record already exists.' }, 409);
   }
   console.error(err);

@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Niche service booking & quote builder — SolidJS + Hono + PostgreSQL",
+  "description": "Niche service booking & quote builder — SolidJS + Hono + SQLite",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail -n api,web -c green,cyan \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "tsx watch server/src/index.ts",
@@ -13,8 +13,6 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test server/tests/pricing.test.ts server/tests/availability.test.ts",
     "race-test": "tsx server/scripts/race-test.ts",
-    "db:up": "docker compose up -d db",
-    "db:down": "docker compose down",
     "db:reset": "tsx server/scripts/reset-db.ts"
   },
   "dependencies": {
@@ -22,14 +20,12 @@
     "@solidjs/router": "^0.15.4",
     "hono": "^4.13.19",
     "luxon": "^3.7.2",
-    "pg": "^8.23.1",
     "solid-js": "^1.9.19",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.6",
     "@types/node": "^24.19.2",
-    "@types/pg": "^8.23.1",
     "concurrently": "^10.0.7",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

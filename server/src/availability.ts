@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
 import type { SlotDto, WorkingHourDto } from '../../shared/types';
+import { toIsoUtc } from './time';
 
 export interface BookedRange {
   startsAt: string;
@@ -48,8 +49,8 @@ export function computeSlots(args: ComputeSlotsArgs): SlotDto[] {
     const blocked = ranges.some((range) => range.start < endMs && range.end > startMs);
     if (!blocked && cursor >= earliest) {
       slots.push({
-        startsAt: cursor.toUTC().toISO({ suppressMilliseconds: true })!,
-        endsAt: end.toUTC().toISO({ suppressMilliseconds: true })!,
+        startsAt: toIsoUtc(cursor),
+        endsAt: toIsoUtc(end),
       });
     }
     cursor = cursor.plus({ minutes: slotMinutes });

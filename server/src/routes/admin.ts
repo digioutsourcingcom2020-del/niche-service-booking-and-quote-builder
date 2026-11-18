@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { BookingStatus } from '../../../shared/types';
 import { requireProvider, type AppEnv } from '../auth';
 import { getOverview, listBookings, updateBookingStatus } from '../bookings';
-import { AppError, query, withTransaction } from '../db';
+import { AppError, newId, query, withTransaction } from '../db';
 import { listEmails } from '../emails';
 import {
   getSettings,
@@ -50,10 +50,10 @@ router.get('/services', async (c) => {
 router.post('/services', async (c) => {
   const body = serviceSchema.parse(await c.req.json());
   const inserted = await query<ServiceRow>(
-    `INSERT INTO services (name, description, base_price_cents, duration_min, active, sort_order)
-     VALUES ($1, $2, $3, $4, $5, (SELECT coalesce(max(sort_order), 0) + 1 FROM services))
+    `INSERT INTO services (id, name, description, base_price_cents, duration_min, active, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, (SELECT coalesce(max(sort_order), 0) + 1 FROM services))
      RETURNING *`,
-    [body.name, body.description, body.basePriceCents, body.durationMin, body.active],
+    [newId(), body.name, body.description, body.basePriceCents, body.durationMin, body.active],
   );
   return c.json({ service: mapService(inserted.rows[0]) }, 201);
 });
@@ -63,10 +63,10 @@ router.put('/services/:id', async (c) => {
   const body = serviceSchema.parse(await c.req.json());
   const updated = await query<ServiceRow>(
     `UPDATE services
-        SET name = $2, description = $3, base_price_cents = $4, duration_min = $5, active = $6, updated_at = now()
-      WHERE id = $1
+        SET name = ?, description = ?, base_price_cents = ?, duration_min = ?, active = ?, updated_at = ?
+      WHERE id = ?
       RETURNING *`,
-    [id, body.name, body.description, body.basePriceCents, body.durationMin, body.active],
+    [body.name, body.description, body.basePriceCents, body.durationMin, body.active, new Date().toISOString(), id],
   );
   if (!updated.rows[0]) throw new AppError(404, 'Service not found.');
   return c.json({ service: mapService(updated.rows[0]) });
@@ -74,7 +74,7 @@ router.put('/services/:id', async (c) => {
 
 router.delete('/services/:id', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
-  const deleted = await query('DELETE FROM services WHERE id = $1', [id]);
+  const deleted = await query('DELETE FROM services WHERE id = ?', [id]);
   if (!deleted.rowCount) throw new AppError(404, 'Service not found.');
   return c.json({ ok: true });
 });
@@ -94,10 +94,10 @@ router.get('/addons', async (c) => {
 router.post('/addons', async (c) => {
   const body = addonSchema.parse(await c.req.json());
   const inserted = await query<AddonRow>(
-    `INSERT INTO addons (name, description, price_cents, duration_min, active, sort_order)
-     VALUES ($1, $2, $3, $4, $5, (SELECT coalesce(max(sort_order), 0) + 1 FROM addons))
+    `INSERT INTO addons (id, name, description, price_cents, duration_min, active, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, (SELECT coalesce(max(sort_order), 0) + 1 FROM addons))
      RETURNING *`,
-    [body.name, body.description, body.priceCents, body.durationMin, body.active],
+    [newId(), body.name, body.description, body.priceCents, body.durationMin, body.active],
   );
   return c.json({ addon: mapAddon(inserted.rows[0]) }, 201);
 });
@@ -107,10 +107,10 @@ router.put('/addons/:id', async (c) => {
   const body = addonSchema.parse(await c.req.json());
   const updated = await query<AddonRow>(
     `UPDATE addons
-        SET name = $2, description = $3, price_cents = $4, duration_min = $5, active = $6, updated_at = now()
-      WHERE id = $1
+        SET name = ?, description = ?, price_cents = ?, duration_min = ?, active = ?, updated_at = ?
+      WHERE id = ?
       RETURNING *`,
-    [id, body.name, body.description, body.priceCents, body.durationMin, body.active],
+    [body.name, body.description, body.priceCents, body.durationMin, body.active, new Date().toISOString(), id],
   );
   if (!updated.rows[0]) throw new AppError(404, 'Add-on not found.');
   return c.json({ addon: mapAddon(updated.rows[0]) });
@@ -118,7 +118,7 @@ router.put('/addons/:id', async (c) => {
 
 router.delete('/addons/:id', async (c) => {
   const id = z.string().uuid().parse(c.req.param('id'));
-  const deleted = await query('DELETE FROM addons WHERE id = $1', [id]);
+  const deleted = await query('DELETE FROM addons WHERE id = ?', [id]);
   if (!deleted.rowCount) throw new AppError(404, 'Add-on not found.');
   return c.json({ ok: true });
 });
@@ -161,8 +161,8 @@ router.put('/settings', async (c) => {
   await withTransaction(async (client) => {
     await client.query(
       `UPDATE settings
-          SET business_name = $1, tagline = $2, phone = $3, address = $4, timezone = $5,
-              slot_minutes = $6, lead_minutes = $7, horizon_days = $8
+          SET business_name = ?, tagline = ?, phone = ?, address = ?, timezone = ?,
+              slot_minutes = ?, lead_minutes = ?, horizon_days = ?
         WHERE id = 1`,
       [
         body.businessName,
@@ -178,9 +178,9 @@ router.put('/settings', async (c) => {
     for (const hour of body.hours) {
       await client.query(
         `INSERT INTO working_hours (weekday, is_open, start_min, end_min)
-         VALUES ($1, $2, $3, $4)
+         VALUES (?, ?, ?, ?)
          ON CONFLICT (weekday) DO UPDATE
-           SET is_open = EXCLUDED.is_open, start_min = EXCLUDED.start_min, end_min = EXCLUDED.end_min`,
+           SET is_open = excluded.is_open, start_min = excluded.start_min, end_min = excluded.end_min`,
         [hour.weekday, hour.isOpen, hour.startMin, hour.endMin],
       );
     }

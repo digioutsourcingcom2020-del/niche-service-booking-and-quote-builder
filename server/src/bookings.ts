@@ -11,10 +11,10 @@ import type {
   OverviewDto,
 } from '../../shared/types';
 import { computeSlots } from './availability';
-import { AppError, query, withTransaction } from './db';
+import { AppError, newId, query, withTransaction } from './db';
 import { sendBookingEmail } from './emails';
 import { getSettings, type AddonRow, type ServiceRow } from './store';
-import { isValidTimezone, parseDateInZone } from './time';
+import { isValidTimezone, parseDateInZone, toIsoUtc } from './time';
 
 interface BookingRow {
   id: string;
@@ -22,10 +22,10 @@ interface BookingRow {
   user_id: string | null;
   service_id: string | null;
   service_name: string;
-  addons: BookingAddon[];
+  addons: BookingAddon[] | string;
   status: BookingStatus;
-  starts_at: Date;
-  ends_at: Date;
+  starts_at: string;
+  ends_at: string;
   duration_min: number;
   base_price_cents: number;
   addons_price_cents: number;
@@ -35,8 +35,8 @@ interface BookingRow {
   customer_phone: string;
   notes: string;
   client_timezone: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 const REFERENCE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -48,6 +48,16 @@ function makeReference(): string {
   return `GW-${code}`;
 }
 
+function parseAddons(value: BookingAddon[] | string): BookingAddon[] {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? (parsed as BookingAddon[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function mapBooking(row: BookingRow): BookingDto {
   return {
     id: row.id,
@@ -57,7 +67,7 @@ export function mapBooking(row: BookingRow): BookingDto {
     endsAt: new Date(row.ends_at).toISOString(),
     durationMin: row.duration_min,
     serviceName: row.service_name,
-    addons: Array.isArray(row.addons) ? row.addons : [],
+    addons: parseAddons(row.addons),
     basePriceCents: row.base_price_cents,
     addonsPriceCents: row.addons_price_cents,
     totalCents: row.total_cents,
@@ -71,13 +81,18 @@ export function mapBooking(row: BookingRow): BookingDto {
 }
 
 async function resolveSelection(serviceId: string, addonIds: string[]) {
-  const serviceResult = await query<ServiceRow>('SELECT * FROM services WHERE id = $1 AND active', [serviceId]);
+  const serviceResult = await query<ServiceRow>('SELECT * FROM services WHERE id = ? AND active', [serviceId]);
   const service = serviceResult.rows[0];
   if (!service) throw new AppError(404, 'That service is not available right now.');
 
   const uniqueAddonIds = [...new Set(addonIds)];
   const addonRows = uniqueAddonIds.length
-    ? (await query<AddonRow>('SELECT * FROM addons WHERE id = ANY($1::uuid[]) AND active', [uniqueAddonIds])).rows
+    ? (
+        await query<AddonRow>(
+          `SELECT * FROM addons WHERE id IN (${uniqueAddonIds.map(() => '?').join(', ')}) AND active`,
+          uniqueAddonIds,
+        )
+      ).rows
     : [];
   if (addonRows.length !== uniqueAddonIds.length) {
     throw new AppError(400, 'One of those add-ons is no longer available. Please refresh and try again.');
@@ -89,7 +104,7 @@ async function resolveSelection(serviceId: string, addonIds: string[]) {
     description: row.description,
     priceCents: row.price_cents,
     durationMin: row.duration_min,
-    active: row.active,
+    active: Boolean(row.active),
     sortOrder: row.sort_order,
   }));
   const quote = quoteFor(service.base_price_cents, service.duration_min, addons);
@@ -109,12 +124,12 @@ export async function computeAvailability(
   const hours = settings.hours.find((hour) => hour.weekday === day.weekday % 7);
   if (!hours) throw new AppError(400, 'Working hours are not configured.');
 
-  const dayStart = day.toUTC().toISO()!;
-  const dayEnd = day.plus({ days: 1 }).toUTC().toISO()!;
-  const booked = await query<{ starts_at: Date; ends_at: Date }>(
+  const dayStart = toIsoUtc(day);
+  const dayEnd = toIsoUtc(day.plus({ days: 1 }));
+  const booked = await query<{ starts_at: string; ends_at: string }>(
     `SELECT starts_at, ends_at FROM bookings
-      WHERE status <> 'cancelled' AND starts_at < $2 AND ends_at > $1`,
-    [dayStart, dayEnd],
+      WHERE status <> 'cancelled' AND starts_at < ? AND ends_at > ?`,
+    [dayEnd, dayStart],
   );
 
   const slots = computeSlots({
@@ -166,8 +181,8 @@ export async function createBooking(input: CreateBookingInput, userId?: string):
     throw new AppError(409, 'That slot is too soon to book online. Please choose a later time.');
   }
 
-  const startIso = local.toUTC().toISO()!;
-  const endIso = ends.toUTC().toISO()!;
+  const startIso = toIsoUtc(local);
+  const endIso = toIsoUtc(ends);
   const addonSnapshot = addons.map<BookingAddon>((addon) => ({
     id: addon.id,
     name: addon.name,
@@ -176,13 +191,12 @@ export async function createBooking(input: CreateBookingInput, userId?: string):
   }));
 
   const row = await withTransaction(async (client) => {
-    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('gleamworks:bookings', 0))`);
-
+    // BEGIN IMMEDIATE already holds SQLite's write lock, so the clash check cannot race an insert.
     const clash = await client.query(
       `SELECT 1 FROM bookings
-        WHERE status <> 'cancelled' AND starts_at < $2 AND ends_at > $1
+        WHERE status <> 'cancelled' AND starts_at < ? AND ends_at > ?
         LIMIT 1`,
-      [startIso, endIso],
+      [endIso, startIso],
     );
     if (clash.rowCount) {
       throw new AppError(409, 'That time was just taken. Please pick another slot.');
@@ -190,12 +204,13 @@ export async function createBooking(input: CreateBookingInput, userId?: string):
 
     const inserted = await client.query<BookingRow>(
       `INSERT INTO bookings (
-         reference, user_id, service_id, service_name, addons, status,
+         id, reference, user_id, service_id, service_name, addons, status,
          starts_at, ends_at, duration_min, base_price_cents, addons_price_cents, total_cents,
          customer_name, customer_email, customer_phone, notes, client_timezone
-       ) VALUES ($1,$2,$3,$4,$5,'pending',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+       ) VALUES (?,?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?)
        RETURNING *`,
       [
+        newId(),
         makeReference(),
         userId ?? null,
         service.id,
@@ -230,7 +245,7 @@ const TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
 };
 
 export async function updateBookingStatus(id: string, next: BookingStatus): Promise<BookingDto> {
-  const current = await query<BookingRow>('SELECT * FROM bookings WHERE id = $1', [id]);
+  const current = await query<BookingRow>('SELECT * FROM bookings WHERE id = ?', [id]);
   const row = current.rows[0];
   if (!row) throw new AppError(404, 'Booking not found.');
   if (!TRANSITIONS[row.status].includes(next)) {
@@ -238,8 +253,8 @@ export async function updateBookingStatus(id: string, next: BookingStatus): Prom
   }
 
   const updated = await query<BookingRow>(
-    'UPDATE bookings SET status = $2, updated_at = now() WHERE id = $1 RETURNING *',
-    [id, next],
+    'UPDATE bookings SET status = ?, updated_at = ? WHERE id = ? RETURNING *',
+    [next, new Date().toISOString(), id],
   );
   const booking = mapBooking(updated.rows[0]);
   const settings = await getSettings();
@@ -257,7 +272,7 @@ export async function listBookings(): Promise<BookingDto[]> {
 export async function bookingsForUser(userId: string, email: string): Promise<BookingDto[]> {
   const result = await query<BookingRow>(
     `SELECT * FROM bookings
-      WHERE user_id = $1 OR lower(customer_email) = lower($2)
+      WHERE user_id = ? OR lower(customer_email) = lower(?)
       ORDER BY starts_at DESC
       LIMIT 100`,
     [userId, email],
@@ -267,38 +282,41 @@ export async function bookingsForUser(userId: string, email: string): Promise<Bo
 
 export async function getOverview(): Promise<OverviewDto> {
   const settings = await getSettings();
-  const zonedNow = DateTime.now().setZone(settings.timezone);
-  const monthStart = zonedNow.startOf('month').toUTC().toISO()!;
-  const dayStart = zonedNow.startOf('day').toUTC().toISO()!;
-  const dayEnd = zonedNow.plus({ days: 1 }).startOf('day').toUTC().toISO()!;
+  const now = DateTime.now();
+  const zonedNow = now.setZone(settings.timezone);
+  const monthStart = toIsoUtc(zonedNow.startOf('month'));
+  const dayStart = toIsoUtc(zonedNow.startOf('day'));
+  const dayEnd = toIsoUtc(zonedNow.plus({ days: 1 }).startOf('day'));
+  const nowIso = toIsoUtc(now);
 
   const [statsResult, todayResult, nextResult] = await Promise.all([
     query<{
-      pending: string;
-      upcoming: string;
-      completed: string;
-      cancelled: string;
-      customers: string;
-      revenue_cents: string;
+      pending: number;
+      upcoming: number;
+      completed: number;
+      cancelled: number;
+      customers: number;
+      revenue_cents: number;
     }>(
       `SELECT
          count(*) FILTER (WHERE status = 'pending') AS pending,
-         count(*) FILTER (WHERE status IN ('pending','confirmed') AND starts_at >= now()) AS upcoming,
+         count(*) FILTER (WHERE status IN ('pending','confirmed') AND starts_at >= ?) AS upcoming,
          count(*) FILTER (WHERE status = 'completed') AS completed,
          count(*) FILTER (WHERE status = 'cancelled') AS cancelled,
          count(DISTINCT lower(customer_email)) AS customers,
-         coalesce(sum(total_cents) FILTER (WHERE status IN ('confirmed','completed') AND starts_at >= $1), 0) AS revenue_cents
+         coalesce(sum(total_cents) FILTER (WHERE status IN ('confirmed','completed') AND starts_at >= ?), 0) AS revenue_cents
        FROM bookings`,
-      [monthStart],
+      [nowIso, monthStart],
     ),
     query<BookingRow>(
-      'SELECT * FROM bookings WHERE starts_at >= $1 AND starts_at < $2 ORDER BY starts_at ASC',
+      'SELECT * FROM bookings WHERE starts_at >= ? AND starts_at < ? ORDER BY starts_at ASC',
       [dayStart, dayEnd],
     ),
     query<BookingRow>(
       `SELECT * FROM bookings
-        WHERE status IN ('pending','confirmed') AND starts_at >= now()
+        WHERE status IN ('pending','confirmed') AND starts_at >= ?
         ORDER BY starts_at ASC LIMIT 6`,
+      [nowIso],
     ),
   ]);
 

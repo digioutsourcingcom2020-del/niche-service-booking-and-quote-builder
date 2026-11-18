@@ -1,6 +1,8 @@
-import { pool } from '../src/db';
+import { closeDb, exec } from '../src/db';
 
-await pool.query('DROP SCHEMA public CASCADE');
-await pool.query('CREATE SCHEMA public');
-console.log('Database schema dropped. Start the server to re-migrate and seed.');
-await pool.end();
+for (const table of ['emails', 'bookings', 'working_hours', 'services', 'addons', 'sessions', 'users', 'settings']) {
+  await exec(`DROP TABLE IF EXISTS ${table}`);
+}
+
+closeDb();
+console.log('Database tables dropped. Start the server to re-create the schema and seed the demo data.');

@@ -1,7 +1,7 @@
 import type { BookingDto, EmailDto, SettingsDto } from '../../shared/types';
 import { formatMoney } from '../../shared/pricing';
 import { config } from './env';
-import { query } from './db';
+import { newId, query } from './db';
 import { formatInZone } from './time';
 
 export type EmailKind = 'booking_received' | 'booking_confirmed' | 'booking_completed' | 'booking_cancelled';
@@ -169,10 +169,10 @@ export async function deliverEmail(params: {
   }
 
   const result = await query<EmailRow>(
-    `INSERT INTO emails (booking_id, to_email, subject, html, kind, status, provider, error, sent_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO emails (id, booking_id, to_email, subject, html, kind, status, provider, error, sent_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      RETURNING *`,
-    [params.bookingId, params.to, subject, html, params.kind, status, provider, error, sentAt],
+    [newId(), params.bookingId, params.to, subject, html, params.kind, status, provider, error, sentAt],
   );
   return mapEmail(result.rows[0]);
 }

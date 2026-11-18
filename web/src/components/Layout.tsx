@@ -67,7 +67,7 @@ function SiteFooter() {
       </div>
       <div class="shell footer-base">
         <span>© {new Date().getFullYear()} {settings()?.businessName ?? 'Gleamworks'}.</span>
-        <span>Built with SolidJS · Hono · PostgreSQL</span>
+        <span>Built with SolidJS · Hono · SQLite</span>
       </div>
     </footer>
   );

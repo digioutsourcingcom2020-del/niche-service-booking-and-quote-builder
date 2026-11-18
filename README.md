@@ -2,7 +2,7 @@
 
 A full-stack booking product for a mobile detailing studio. Clients build a live quote, pick a genuinely available slot in their own time zone, and request the booking. The studio approves requests, completes jobs, and every lifecycle step sends an email.
 
-**Stack:** SolidJS 1.9 + @solidjs/router · Hono 4 on Node · PostgreSQL 16 · Zod · Luxon
+**Stack:** SolidJS 1.9 + @solidjs/router · Hono 4 on Node · SQLite (built into Node 24) · Zod · Luxon
 
 ---
 
@@ -11,13 +11,12 @@ A full-stack booking product for a mobile detailing studio. Clients build a live
 ```bash
 npm install
 cp .env.example .env      # already present in this repo
-npm run db:up             # Postgres 16 in Docker, host port 5433
 npm run dev               # API on :8787 + Vite on :5173
 ```
 
 Open http://localhost:5173.
 
-The database schema is applied automatically on boot, and seed data is inserted only when the `settings` table is empty.
+No database server or Docker required: the app uses the SQLite engine bundled with Node 24 and keeps its file at `.data/gleamworks.db` (gitignored). The schema is applied automatically on boot, and seed data is inserted only when the `settings` table is empty.
 
 ### Demo accounts
 
@@ -35,7 +34,7 @@ npm run build             # bundle to dist/web
 npm start                 # Hono serves the SPA + API on :8787
 ```
 
-With a fresh database, `npm run db:reset` drops and recreates the public schema, then re-seeds on the next boot.
+`npm run db:reset` drops every table; the next boot recreates the schema and re-seeds the demo studio.
 
 ---
 
@@ -96,22 +95,12 @@ By default emails are captured in the `emails` table and shown in the admin Outb
 
 ## How double-bookings are prevented
 
-Three layers protect every booking:
+Two layers protect every booking:
 
-1. **Serialized booking writes.** `createBooking` runs inside a transaction that first takes `pg_advisory_xact_lock(hashtextextended('gleamworks:bookings', 0))`, so concurrent submissions are evaluated one at a time.
-2. **In-transaction overlap re-check.** After the lock, the service duration is resolved and existing `pending`/`confirmed` bookings are checked for overlap. Conflicting requests get `409` *before* insertion.
-3. **Database exclusion constraint.** As a final invariant:
+1. **Serialized writes.** `withTransaction` opens the transaction with `BEGIN IMMEDIATE`, which takes SQLite's write lock up front. No other connection — including a second app process or the CLI — can write between the availability check and the insert.
+2. **In-transaction overlap re-check.** Inside that lock, the service duration is resolved and existing `pending`/`confirmed` bookings are checked for overlap. Conflicting requests get `409` before anything is inserted.
 
-```sql
-ALTER TABLE bookings
-  ADD CONSTRAINT bookings_no_overlap
-  EXCLUDE USING gist (tstzrange(starts_at, ends_at, '[)') WITH &&)
-  WHERE (status <> 'cancelled');
-```
-
-Even if application code were bypassed, Postgres itself refuses two overlapping active bookings (error `23P01`, mapped to a friendly `409`).
-
-Cancelling releases the slot immediately because the exclusion constraint ignores `cancelled` rows.
+Cancelling releases the slot immediately because overlap checks ignore `cancelled` rows, and the next read recomputes availability from the database.
 
 ### Verify it yourself
 
@@ -130,7 +119,7 @@ The script fires two identical booking requests at the same instant, asserts exa
 - The studio's zone (`settings.timezone`, e.g. `America/Los_Angeles`) defines working hours and day boundaries.
 - Availability is generated in that zone with Luxon, then serialized to UTC ISO strings.
 - The client may display slots in any IANA zone. The browser's zone is detected with `Intl.DateTimeFormat`.
-- Bookings store `starts_at`/`ends_at` as `timestamptz` plus the client's `client_timezone` for reference.
+- Bookings store `starts_at`/`ends_at` as UTC ISO-8601 text (fixed millisecond format, so text comparison and sorting stay exact) plus the client's `client_timezone` for reference.
 - The UI labels converted times as "converted for you" and always shows the studio zone alongside.
 
 ---
@@ -147,8 +136,7 @@ The script fires two identical booking requests at the same instant, asserts exa
 | `npm run typecheck` | `tsc --noEmit`                              |
 | `npm test`        | Pricing + availability unit tests (8 tests)  |
 | `npm run race-test` | Concurrent double-booking proof             |
-| `npm run db:up` / `db:down` | Start/stop the Postgres container    |
-| `npm run db:reset` | Drop schema and reseed on next boot          |
+| `npm run db:reset` | Drop all tables and reseed on next boot      |
 
 ---
 
@@ -158,7 +146,8 @@ The script fires two identical booking requests at the same instant, asserts exa
 server/
   src/
     index.ts          Hono app, static SPA serving, error mapping
-    schema.sql        Tables, indexes, exclusion constraint
+    schema.sql        Tables, indexes, checks
+    db.ts             node:sqlite driver, async query wrapper, transactions
     init.ts           Apply schema → seed if empty
     seed.ts           Studio, hours, services, add-ons, demo bookings
     auth.ts           scrypt hashing, sessions, requireUser/requireProvider
@@ -195,7 +184,7 @@ GET/POST/PUT/DELETE  /api/admin/addons[/:id]
 PUT    /api/admin/settings
 ```
 
-All write endpoints parse input with Zod. Persistence uses parameterized SQL via `pg`.
+All write endpoints parse input with Zod. Persistence uses parameterized SQL through `node:sqlite`.
 
 ---
 
@@ -203,7 +192,7 @@ All write endpoints parse input with Zod. Persistence uses parameterized SQL via
 
 | Variable         | Default                                                    | Notes                                  |
 | ---------------- | ---------------------------------------------------------- | -------------------------------------- |
-| `DATABASE_URL`   | `postgres://booking:booking@localhost:5433/booking`        | Port 5433 avoids clashing with a local 5432 instance |
+| `SQLITE_PATH`    | `.data/gleamworks.db`                                      | SQLite file; the folder is created on boot |
 | `PORT`           | `8787`                                                     | API port                               |
 | `APP_URL`        | `http://localhost:5173`                                    | Used in email links                    |
 | `MAIL_FROM`      | `Gleamworks Studio <bookings@gleamworks.test>`             | Sender identity                        |

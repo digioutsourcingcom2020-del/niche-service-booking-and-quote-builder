@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { DateTime } from 'luxon';
 import type { AvailabilityDto, PublicProfile } from '../../shared/types';
-import { pool, query } from '../src/db';
+import { closeDb, query } from '../src/db';
 
 const baseUrl = process.env.TEST_BASE_URL ?? 'http://localhost:8787';
 
@@ -58,12 +58,12 @@ async function main() {
 
   await query("DELETE FROM emails WHERE to_email LIKE 'race+%'");
   await query("DELETE FROM bookings WHERE customer_email LIKE 'race+%'");
-  await pool.end();
+  closeDb();
   console.log('Race test passed: no double booking under concurrent requests.');
 }
 
-main().catch(async (error) => {
+main().catch((error) => {
   console.error(error);
-  await pool.end();
+  closeDb();
   process.exit(1);
 });

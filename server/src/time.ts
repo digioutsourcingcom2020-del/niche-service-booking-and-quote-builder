@@ -8,6 +8,11 @@ export function isValidTimezone(timezone: string): boolean {
   }
 }
 
+// Every stored timestamp uses this exact shape so text comparisons and sorting stay correct.
+export function toIsoUtc(dt: DateTime): string {
+  return dt.toUTC().toFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+}
+
 export function parseDateInZone(dateISO: string, timezone: string): DateTime | null {
   const day = DateTime.fromISO(dateISO, { zone: timezone }).startOf('day');
   return day.isValid ? day : null;

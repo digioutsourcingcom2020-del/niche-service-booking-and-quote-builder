@@ -7,7 +7,7 @@ try {
 }
 
 export const config = {
-  databaseUrl: process.env.DATABASE_URL ?? 'postgres://booking:booking@localhost:5433/booking',
+  sqlitePath: process.env.SQLITE_PATH?.trim() || '.data/gleamworks.db',
   port: Number(process.env.PORT ?? 8787),
   appUrl: process.env.APP_URL ?? 'http://localhost:5173',
   mailFrom: process.env.MAIL_FROM ?? 'Gleamworks Studio <bookings@gleamworks.test>',

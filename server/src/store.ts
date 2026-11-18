@@ -46,7 +46,7 @@ export function mapService(row: ServiceRow): ServiceDto {
     description: row.description,
     basePriceCents: row.base_price_cents,
     durationMin: row.duration_min,
-    active: row.active,
+    active: Boolean(row.active),
     sortOrder: row.sort_order,
   };
 }
@@ -58,7 +58,7 @@ export function mapAddon(row: AddonRow): AddonDto {
     description: row.description,
     priceCents: row.price_cents,
     durationMin: row.duration_min,
-    active: row.active,
+    active: Boolean(row.active),
     sortOrder: row.sort_order,
   };
 }
@@ -75,7 +75,7 @@ export function mapSettings(row: SettingsRow, hours: HourRow[]): SettingsDto {
     horizonDays: row.horizon_days,
     hours: hours.map<WorkingHourDto>((hour) => ({
       weekday: hour.weekday,
-      isOpen: hour.is_open,
+      isOpen: Boolean(hour.is_open),
       startMin: hour.start_min,
       endMin: hour.end_min,
     })),
