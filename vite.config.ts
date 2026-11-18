@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: ['sb-3m8qzqs8t989.vercel.run'],
     port: 5173,
     allowedHosts: ['sb-3m8qzqs8t989.vercel.run'],
     proxy: {

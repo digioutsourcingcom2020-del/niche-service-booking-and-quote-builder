@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { BookingStatus } from '../../../shared/types';
-import { requireProvider, type AppEnv } from '../auth';
-import { getOverview, listBookings, updateBookingStatus } from '../bookings';
-import { AppError, newId, query, withTransaction } from '../db';
-import { listEmails } from '../emails';
+import type { BookingStatus } from '../../../shared/types.js';
+import { requireProvider, type AppEnv } from '../auth.js';
+import { getOverview, listBookings, updateBookingStatus } from '../bookings.js';
+import { AppError, newId, query, withTransaction } from '../db.js';
+import { listEmails } from '../emails.js';
 import {
   getSettings,
   listAddons,
@@ -13,8 +13,8 @@ import {
   mapService,
   type AddonRow,
   type ServiceRow,
-} from '../store';
-import { isValidTimezone } from '../time';
+} from '../store.js';
+import { isValidTimezone } from '../time.js';
 
 const router = new Hono<AppEnv>();
 router.use('*', requireProvider);

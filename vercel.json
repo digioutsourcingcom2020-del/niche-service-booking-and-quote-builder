@@ -1,0 +1,8 @@
+{
+  "outputDirectory": "dist/web",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": "server/src/schema.sql"
+    }
+  }
+}

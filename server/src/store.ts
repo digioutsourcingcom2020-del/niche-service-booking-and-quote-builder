@@ -1,5 +1,5 @@
-import type { AddonDto, PublicProfile, ServiceDto, SettingsDto, WorkingHourDto } from '../../shared/types';
-import { query } from './db';
+import type { AddonDto, PublicProfile, ServiceDto, SettingsDto, WorkingHourDto } from '../../shared/types.js';
+import { query } from './db.js';
 
 export interface SettingsRow {
   business_name: string;

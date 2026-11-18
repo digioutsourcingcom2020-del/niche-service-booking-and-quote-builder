@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { DateTime } from 'luxon';
-import { quoteFor } from '../../shared/pricing';
+import { quoteFor } from '../../shared/pricing.js';
 import type {
   AddonDto,
   AvailabilityDto,
@@ -9,12 +9,12 @@ import type {
   BookingStatus,
   CreateBookingInput,
   OverviewDto,
-} from '../../shared/types';
-import { computeSlots } from './availability';
-import { AppError, newId, query, withTransaction } from './db';
-import { sendBookingEmail } from './emails';
-import { getSettings, type AddonRow, type ServiceRow } from './store';
-import { isValidTimezone, parseDateInZone, toIsoUtc } from './time';
+} from '../../shared/types.js';
+import { computeSlots } from './availability.js';
+import { AppError, newId, query, withTransaction } from './db.js';
+import { sendBookingEmail } from './emails.js';
+import { getSettings, type AddonRow, type ServiceRow } from './store.js';
+import { isValidTimezone, parseDateInZone, toIsoUtc } from './time.js';
 
 interface BookingRow {
   id: string;
